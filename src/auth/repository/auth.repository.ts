@@ -14,7 +14,7 @@ export class AuthRepository {
 
   constructor(
     @InjectRepository(AuthEntity)
-    private readonly authRepository: AuthRepository,
+    private readonly authRepository: Repository<AuthEntity>,
     private readonly dataSource: DataSource,
   ) {
     this.usersRepository = dataSource.getRepository(UserEntity);
@@ -49,5 +49,13 @@ export class AuthRepository {
           throw new InternalServerErrorException();
       }
     }
+  }
+
+  async getAuthByRefreshToken(refreshToken: string) {
+    return await this.authRepository.findOne({
+      where: {
+        refreshToken,
+      },
+    });
   }
 }
