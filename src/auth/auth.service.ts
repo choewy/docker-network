@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigType } from '@nestjs/config';
-import { UserData } from './dto/user-data';
+import { UserData } from 'src/users/dto/user-data';
 import { ReissueTokenDTO } from './dto/reissue-token.dto';
 import { SignedTokens } from './dto/signed-tokens';
 import { SignInUserDTO } from './dto/signin-user.dto';

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { HttpErrorData } from 'src/utils/exceptions/interface';
 import { AuthGuard } from 'src/utils/guards/auth.guard';
-import { UserData } from '../dto/user-data';
+import { UserData } from 'src/users/dto/user-data';
 
 export const AuthCheckDecorator = () => {
   return applyDecorators(
