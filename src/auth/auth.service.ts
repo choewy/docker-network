@@ -1,55 +1,69 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import * as jwt from 'jsonwebtoken';
-import { User } from 'src/users/entity/user.entity';
+import { ConfigType } from '@nestjs/config';
+import { UserData } from './dto/user-data';
 import { ReissueTokenDTO } from './dto/reissue-token.dto';
+import { SignedTokens } from './dto/signed-tokens';
 import { SignInUserDTO } from './dto/signin-user.dto';
 import { SignUpUserDTO } from './dto/signup-user.dto';
+import { AuthEntity } from './entity/auth.entity';
 import { AuthRepository } from './repository/auth.repository';
+import authConfig from 'src/configs/auth.config';
+import * as jwt from 'jsonwebtoken';
+import * as bcrypt from 'bcrypt';
 
-type Payload = (jwt.JwtPayload | string) & User;
-
-const jwtSecret = 'secret';
+type Payload = (jwt.JwtPayload | string) & UserData;
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly authRepository: AuthRepository) {}
+  private readonly salt: number;
+  private readonly secret: string;
+  constructor(
+    @Inject(authConfig.KEY)
+    private config: ConfigType<typeof authConfig>,
+    private readonly authRepository: AuthRepository,
+  ) {
+    this.salt = this.config.bcrypt.salt;
+    this.secret = this.config.jwt.secret;
+  }
 
   async signup(body: SignUpUserDTO) {
-    // PIPE에서 비밀번호 동일 여부 확인 및 암호화 진행
+    body.password = await this.hashPassword(body.password);
     const user = await this.authRepository.createUser(body);
-
     const accessToken = await this.issueAccessToken(user.id);
     const refreshToken = await this.issueRefreshToken(user.id);
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return new SignedTokens(accessToken, refreshToken);
   }
 
   async signin(body: SignInUserDTO) {
     const { username, password } = body;
     const user = await this.authRepository.getUserByUsername(username);
+    const verified = await this.comparePassword(password, user.password);
 
-    // 비밀번호 유효성 검사
+    if (!verified) {
+      throw new UnauthorizedException();
+    }
 
-    // 토큰 생성 및 리프레시 토큰 DB 저장
     const accessToken = await this.issueAccessToken(user.id);
     const refreshToken = await this.issueRefreshToken(user.id);
-
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return new SignedTokens(accessToken, refreshToken);
   }
 
-  async verifyToken(bearerToken: string) {
+  async hashPassword(password: string) {
+    return await bcrypt.hash(password, this.salt);
+  }
+
+  async comparePassword(password: string, userPassword: string) {
+    return await bcrypt.compare(password, userPassword);
+  }
+
+  async verifyAccessToken(bearerToken: string) {
     try {
-      const payload = jwt.verify(bearerToken, jwtSecret) as Payload;
+      const payload = jwt.verify(bearerToken, this.secret) as Payload;
       return await this.authRepository.getUserById(payload.id);
     } catch (e) {
       switch (e.message) {
@@ -61,9 +75,25 @@ export class AuthService {
     }
   }
 
+  async verifyRefreshToken(refreshToken: string) {
+    let needReissue = false;
+    try {
+      jwt.verify(refreshToken, this.secret);
+    } catch (e) {
+      switch (e.message) {
+        case 'jwt expired':
+          needReissue = true;
+          break;
+        default:
+          throw new UnauthorizedException();
+      }
+    }
+    return needReissue;
+  }
+
   private async decodeToken(token: string) {
     try {
-      return jwt.verify(token, jwtSecret, {
+      return jwt.verify(token, this.secret, {
         ignoreExpiration: true,
       }) as Payload;
     } catch {
@@ -72,57 +102,45 @@ export class AuthService {
   }
 
   private async issueAccessToken(userId: string) {
-    return jwt.sign({ id: userId }, jwtSecret, {
-      expiresIn: '1d',
-      audience: 'localhost:3001',
-      issuer: 'localhost:3001',
-    });
+    const { accessTokenOptions } = this.config.jwt;
+    const payload = { id: userId };
+    return jwt.sign(payload, this.secret, accessTokenOptions);
   }
 
   private async issueRefreshToken(userId: string) {
-    // DB에 저장
-    const refreshToken = jwt.sign({ id: userId }, jwtSecret, {
-      expiresIn: '14d',
-      audience: 'localhost:3001',
-      issuer: 'localhost:3001',
-    });
-
+    const { refreshTokenOptions } = this.config.jwt;
+    const payload = { id: userId };
+    const refreshToken = jwt.sign(payload, this.secret, refreshTokenOptions);
+    await this.authRepository.saveRefreshToken(userId, refreshToken);
     return refreshToken;
   }
 
-  private async reissueAccessToken(bearerToken: string, body: ReissueTokenDTO) {
+  async reissueAccessToken(bearerToken: string, body: ReissueTokenDTO) {
     if (!bearerToken) {
       throw new UnauthorizedException();
     }
 
     const payload = await this.decodeToken(bearerToken);
-
     const auth = await this.authRepository.getAuthByRefreshToken(
       body.refreshToken,
     );
 
-    if (!auth) {
-      throw new UnauthorizedException();
-    }
-
-    if (payload.id !== auth.userId) {
+    if (!auth || payload.id !== auth.userId) {
       throw new UnauthorizedException();
     }
 
     const accessToken = await this.issueAccessToken(auth.userId);
+    const needReissue = await this.verifyRefreshToken(body.refreshToken);
 
-    // 리프레시 토큰 만료 기간 확인 후 리프레시 토큰도 재발행
-    let isRefresh = false;
-
-    const refreshToken = isRefresh
-      ? await this.reissueRefreshToken()
+    const refreshToken = needReissue
+      ? await this.reissueRefreshToken(auth)
       : body.refreshToken;
 
-    return {
-      accessToken,
-      refreshToken,
-    };
+    return new SignedTokens(accessToken, refreshToken);
   }
 
-  private async reissueRefreshToken() {}
+  private async reissueRefreshToken(auth: AuthEntity) {
+    await this.authRepository.deleteRefreshToken(auth.id, auth.userId);
+    return await this.issueRefreshToken(auth.userId);
+  }
 }

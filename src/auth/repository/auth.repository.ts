@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserEntity } from 'src/users/entity/user.entity';
 import { DataSource, Repository } from 'typeorm';
+import { SignUpUserDTO } from '../dto/signup-user.dto';
 import { AuthEntity } from '../entity/auth.entity';
 
 @Injectable()
@@ -30,17 +31,13 @@ export class AuthRepository {
     return await this.usersRepository
       .createQueryBuilder('users')
       .select(['users.id', 'users.username', 'users.email', 'users.role'])
-      .where('user.id = :userId', { userId })
+      .where('users.id = :userId', { userId })
       .getOne();
   }
 
-  async createUser(user: any) {
+  async createUser(body: SignUpUserDTO) {
     try {
-      return await this.usersRepository.save({
-        email: 'choewy32@gmail.com',
-        username: 'choewy',
-        password: 'password',
-      });
+      return await this.usersRepository.save(body);
     } catch (e) {
       switch (e.errno) {
         case 1062:
@@ -49,6 +46,14 @@ export class AuthRepository {
           throw new InternalServerErrorException();
       }
     }
+  }
+
+  async saveRefreshToken(userId: string, refreshToken: string) {
+    return await this.authRepository.save({ userId, refreshToken });
+  }
+
+  async deleteRefreshToken(authId: string, userId: string) {
+    return await this.authRepository.softDelete({ id: authId, userId });
   }
 
   async getAuthByRefreshToken(refreshToken: string) {

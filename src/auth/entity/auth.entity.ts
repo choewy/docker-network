@@ -1,5 +1,13 @@
-import { Column, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
+@Entity('auth')
 export class AuthEntity {
   @PrimaryGeneratedColumn('uuid')
   readonly id: string;
@@ -7,9 +15,15 @@ export class AuthEntity {
   @Column()
   userId: string;
 
-  @Column()
-  accessToken: string;
-
-  @Column()
+  @Column('text')
   refreshToken: string;
+
+  @CreateDateColumn()
+  createdAt: string;
+
+  @UpdateDateColumn()
+  updatedAt: string;
+
+  @DeleteDateColumn()
+  deletedAt: string;
 }
