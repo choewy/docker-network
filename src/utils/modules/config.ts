@@ -1,9 +1,9 @@
 import { ConfigModule } from '@nestjs/config';
-import jwtConfig from '../config/jwt.config';
-import serverConfig from '../config/server.config';
+import jwtConfig from 'src/configs/auth.config';
+import serverConfig from 'src/configs/server.config';
 
 const environment = process.env.NODE_ENV;
-const envDirPath = process.cwd() + '/configs';
+const envDirPath = process.cwd() + '/dist/configs/env';
 const common = `${envDirPath}/.common.env`;
 const development = `${envDirPath}/.development.env`;
 const production = `${envDirPath}/.production.env`;
