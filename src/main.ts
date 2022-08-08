@@ -6,8 +6,9 @@ import { AppModule } from './app.module';
 import { winstonLogger } from './utils/modules/winston';
 import { loggerMiddleware } from './utils/middlewares/logger';
 import { ConfigService } from '@nestjs/config';
-import { ServerConfig } from './utils/config/server.config';
 import { swaggerModule } from './utils/modules/swagger';
+import { ServerConfig } from './configs/server.config';
+import { validationPipe } from './utils/modules/validation-pipe';
 
 const bootstrap = async () => {
   const logger = winstonLogger();
@@ -26,6 +27,7 @@ const bootstrap = async () => {
   app.enableCors(config.cors);
   app.use(loggerMiddleware(new Logger()));
   app.useGlobalGuards();
+  app.useGlobalPipes(validationPipe());
 
   swaggerModule(app);
 

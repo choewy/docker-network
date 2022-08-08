@@ -9,6 +9,7 @@ export class ValidationException extends BadRequestException {
 
   constructor(errors: ValidationError[]) {
     super();
+    this.__errors = {};
     errors.forEach((error) => {
       this.__errors[error.property] = Object.keys(error.constraints);
     });
