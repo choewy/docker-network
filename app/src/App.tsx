@@ -1,26 +1,35 @@
-import React from 'react';
-import logo from './logo.svg';
+import axios from 'axios';
+import { FC, useCallback, useEffect, useState } from 'react';
 import './App.css';
 
-function App() {
+const App: FC = () => {
+  const [rows, setRows] = useState<string[]>([]);
+
+  const getRows = useCallback(async () => {
+    try {
+      const { data } = await axios({
+        baseURL: 'http://localhost:3001',
+        method: 'GET',
+        url: '/data',
+      });
+
+      setRows(data);
+    } catch (e) {
+      console.log(e);
+    }
+  }, [setRows]);
+
+  useEffect(() => {
+    getRows();
+  }, [getRows]);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div>
+      {rows.map((row, i) => (
+        <div key={`row-${row}-${i}`}>{row}</div>
+      ))}
     </div>
   );
-}
+};
 
 export default App;
